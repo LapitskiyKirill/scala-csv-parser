@@ -21,7 +21,7 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
     list.size
   }
 
-  private def countOfBicycleUsedBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[DriveInfo]): Int = {
+  private def countOfUsagesBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[DriveInfo]): Int = {
     list.count(a => (a.getStartDate.isAfter(startDate) && a.getStartDate.isBefore(endDate)) || (a.getEndDate.isAfter(startDate) && a.getEndDate.isBefore(endDate)))
   }
 
@@ -42,11 +42,12 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
 
   private def generateGeneralStatus(startDate: String, endDate: String, list: List[DriveInfo]): (String, String) = {
     val statisticsWithNoErrorLines = getStatisticsWithNoErrorLines(list)
-    (directoryPath + generalStatsFilename, "\"Count of drives\"," + countOfTrips(statisticsWithNoErrorLines) +
-      "\"\n\"Count of parse errors\",\"" + countErrorParseLines(list) +
-      "\"\n\"Count of bicycle\",\"" + countOfBicycleUsedBetweenDates(parseTime(startDate), parseTime(endDate), statisticsWithNoErrorLines) +
-      "\"\n\"Count of uniq\",\"" + countOfUniqBicycleUsedBetweenDates(parseTime(startDate), parseTime(endDate), statisticsWithNoErrorLines) +
-      "\"\n\"Longest drive\",\"" + longestDrive(statisticsWithNoErrorLines) + "\"")
+    (directoryPath + generalStatsFilename,
+      "\"Count of drives\"," + countOfTrips(statisticsWithNoErrorLines) +
+        "\"\n\"Count of parse errors\",\"" + countErrorParseLines(list) +
+        "\"\n\"Count of usages between dates\",\"" + countOfUsagesBetweenDates(parseTime(startDate), parseTime(endDate), statisticsWithNoErrorLines) +
+        "\"\n\"Count of bicycles used between dates\",\"" + countOfUniqBicycleUsedBetweenDates(parseTime(startDate), parseTime(endDate), statisticsWithNoErrorLines) +
+        "\"\n\"Longest drive\",\"" + longestDrive(statisticsWithNoErrorLines) + "\"")
   }
 
   private def generateMonthlyDrivesStatisticsReport(list: List[DriveInfo]): (String, String) = {
@@ -82,7 +83,11 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
 
   def generateReports(startDate: String, endDate: String, list: List[DriveInfo]): Array[(String, String)] = {
     val statisticsWithNoErrorLines = getStatisticsWithNoErrorLines(list)
-    Array(generateGeneralStatus(startDate, endDate, list), generateMonthlyDrivesStatisticsReport(statisticsWithNoErrorLines), generateEachBicycleStatistics(statisticsWithNoErrorLines))
+    Array(
+      generateGeneralStatus(startDate, endDate, list),
+      generateMonthlyDrivesStatisticsReport(statisticsWithNoErrorLines),
+      generateEachBicycleStatistics(statisticsWithNoErrorLines)
+    )
   }
 
   private def parseTime(dateTime: String): LocalDateTime = {
