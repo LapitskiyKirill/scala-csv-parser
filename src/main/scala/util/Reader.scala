@@ -1,8 +1,11 @@
+package util
+
+import entity.DriveInfo
+
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-
-import scala.io.Source
 import scala.collection.immutable.List
+import scala.io.Source
 
 class Reader {
   def readFile(fileName: String): List[DriveInfo] = {

@@ -1,3 +1,5 @@
+import util.{Reader, ReportGenerator, Writer}
+
 object Main {
   def main(args: Array[String]): Unit = {
     val fileName = "2010-capitalbikeshare-tripdata.csv"
