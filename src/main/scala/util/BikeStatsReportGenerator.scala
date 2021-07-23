@@ -4,7 +4,7 @@ import entity.{DriveInfo, Report}
 
 import scala.collection.immutable.List
 
-class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String) extends Reporter {
+class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String) extends ReportGenerator {
   override def generate(list: List[Option[DriveInfo]]): Report = {
     val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
     generateEachBicycleStatistics(statisticsWithNoErrorLines)

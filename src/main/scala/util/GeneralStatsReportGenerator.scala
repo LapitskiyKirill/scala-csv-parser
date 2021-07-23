@@ -6,7 +6,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.collection.immutable.List
 
-class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, generalStatsFilename: String) extends Reporter {
+class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, generalStatsFilename: String) extends ReportGenerator {
   override def generate(list: List[Option[DriveInfo]]): Report = {
     generateGeneralStatus(dateRange, list)
   }

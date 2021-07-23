@@ -5,7 +5,7 @@ import entity.{DriveInfo, Report}
 import java.time.Month
 import scala.collection.immutable.List
 
-class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: String) extends Reporter {
+class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: String) extends ReportGenerator {
   override def generate(list: List[Option[DriveInfo]]): Report = {
     val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
     generateMonthlyDrivesStatisticsReport(statisticsWithNoErrorLines)

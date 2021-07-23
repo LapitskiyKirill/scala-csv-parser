@@ -1,5 +1,6 @@
-import util.{Reader, ReportGenerator, Writer}
+import util.{Reader, Reporter, Writer}
 import com.typesafe.config.ConfigFactory
+import entity.DateRange
 
 object Main {
 
@@ -11,10 +12,10 @@ object Main {
     val usageFilename = config.getString("filename.usage")
     val path = config.getString("filename.path")
     val reader = Reader
-    val reportGenerator = new ReportGenerator(path, bikeFilename, generalFilename, usageFilename)
+    val reporter = new Reporter(path, bikeFilename, generalFilename, usageFilename)
     val writer = Writer
     val list = reader.readFile(path + sourceFilename)
-    writer.write(reportGenerator.generateReports("2010-09-20 12:26:08", "2010-10-26 12:26:08", list))
+    writer.write(reporter.generateReports(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), list))
   }
 
   def main(args: Array[String]): Unit = {
