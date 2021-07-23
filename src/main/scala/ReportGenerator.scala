@@ -22,13 +22,13 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
   }
 
   private def countOfUniqBicycleUsedBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[DriveInfo]): Int = {
-    val list1: List[Any] = for (line <- list) yield {
+    val drivesBetweenDates: List[Any] = for (line <- list) yield {
       if (line.getStartDate.isAfter(startDate) && line.getStartDate.isBefore(endDate) || line.getEndDate.isAfter(startDate) && line.getEndDate.isBefore(endDate)) {
         line
       }
     }
-    val resultList = list1.filter(line => line.isInstanceOf[DriveInfo]).asInstanceOf[List[DriveInfo]]
-    resultList.distinctBy(_.getBikeNumber).size
+    //bicyclesUsedBetweenDates.size
+    drivesBetweenDates.filter(line => line.isInstanceOf[DriveInfo]).asInstanceOf[List[DriveInfo]].distinctBy(_.getBikeNumber).size
   }
 
   private def longestDrive(list: List[DriveInfo]) = {
@@ -46,22 +46,19 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
   }
 
   private def generateMonthlyDrivesStatisticsReport(list: List[DriveInfo]): (String, String) = {
-    val stats = for (month <- Month.values()) yield {
-      ("\"" + month + "\"", "\"" + monthlyDrivesStatistics(month, list) + "\"")
-    }
+    val stats = for (month <- Month.values()) yield ("\"" + month + "\"", "\"" + monthlyDrivesStatistics(month, list) + "\"")
     val report = stats.mkString("\n")
     (directoryPath + usageStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", ""))
   }
 
-  private def monthlyDrivesStatistics(month: Month, list: List[DriveInfo]): Int = {
-    list.count(line => line.getStartDate.getMonth.equals(month))
-  }
-
   private def generateEachBicycleStatistics(list: List[DriveInfo]): (String, String) = {
-    val eachBicycleStats = list.groupBy(_.getBikeNumber)
-    val stats = createStatisticsMapsForEachBicycle(eachBicycleStats).asInstanceOf[List[(String, Int, Int)]]
+    val stats = createStatisticsMapsForEachBicycle(list.groupBy(_.getBikeNumber)).asInstanceOf[List[(String, Int, Int)]]
     val report = stats.sortBy(_._2)(Ordering.Int.reverse).mkString("\n")
     (directoryPath + bikeStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", ""))
+  }
+
+  private def monthlyDrivesStatistics(month: Month, list: List[DriveInfo]): Int = {
+    list.count(line => line.getStartDate.getMonth.equals(month))
   }
 
   private def createStatisticsMapsForEachBicycle(map: Map[String, List[DriveInfo]]) = {
@@ -76,14 +73,7 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
   }
 
   private def totalDrivesDuration(stats: (String, List[DriveInfo])): Int = {
-    durationSum(stats._2.map(_.getDuration))
-  }
-
-  def durationSum(list: List[Int]): Int = {
-    list match {
-      case sum :: tail => sum + durationSum(tail)
-      case Nil => 0
-    }
+    stats._2.map(_.getDuration).sum
   }
 
   def generateReports(startDate: String, endDate: String, list: List[DriveInfo]): Array[(String, String)] = {

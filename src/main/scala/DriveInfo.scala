@@ -12,7 +12,6 @@ class DriveInfo(
                  memberType: String
                ) {
 
-
   override def equals(o: Any): Boolean = {
     o match {
       case other: DriveInfo =>
