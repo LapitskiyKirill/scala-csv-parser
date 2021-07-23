@@ -2,13 +2,12 @@ package util
 
 import java.io.PrintWriter
 
-class Writer {
+object Writer {
   def write(info: Array[(String, String)]): Unit = {
-    for (report <- info) {
+    info.foreach(f = report =>
       new PrintWriter(report._1) {
-        write(report._2);
+        write(report._2)
         close()
-      }
-    }
+      })
   }
 }

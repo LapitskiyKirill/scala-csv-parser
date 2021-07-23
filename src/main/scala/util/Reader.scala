@@ -7,17 +7,10 @@ import java.time.format.DateTimeFormatter
 import scala.collection.immutable.List
 import scala.io.Source
 
-class Reader {
-  def readFile(fileName: String): List[DriveInfo] = {
+object Reader {
+  def readFile(fileName: String): List[Option[DriveInfo]] = {
     val source = Source.fromFile(fileName)
-    val lines: List[DriveInfo] =
-      (for (line <- source.getLines.drop(1))
-        yield {
-          readLine(line) match {
-            case Some(value) => value
-            case None => new DriveInfo(Int.MinValue, LocalDateTime.MIN, LocalDateTime.MIN, Int.MinValue, "", Int.MinValue, "", "", "")
-          }
-        }).toList
+    val lines: List[Option[DriveInfo]] = source.getLines.drop(1).map(line => readLine(line)).toList
     source.close()
     lines
   }
@@ -26,7 +19,7 @@ class Reader {
     try {
       val iterator: Iterator[String] = line.split(",").iterator
       val driveInfo = Some(
-        new DriveInfo(
+        DriveInfo(
           deleteQuotes(iterator.next()).toInt,
           parseTime(deleteQuotes(iterator.next())),
           parseTime(deleteQuotes(iterator.next())),
@@ -41,16 +34,18 @@ class Reader {
       if (validateDriveInfo(driveInfo.value)) {
         driveInfo
       } else
-        throw new Exception("Data is not valid")
+        Option.empty
     } catch {
-      case e: Exception => None
+      case e: Exception => Option.empty
     }
   }
 
   private def validateDriveInfo(driveInfo: DriveInfo): Boolean = {
-    if (!driveInfo.getBikeNumber.matches("W[0-9]{5}")) return false
-    if (driveInfo.getStartDate.isAfter(driveInfo.getEndDate)) return false
-    if (!List("Member", "Casual").contains(driveInfo.getMemberType)) return false
+    driveInfo match {
+      case DriveInfo(_, startDate, endDate, _, _, _, _, bikeNumber, memberType) =>
+        if (!bikeNumber.matches("W[0-9]{5}") || startDate.isAfter(endDate) || !List("Member", "Casual").contains(memberType))
+          return false
+    }
     true
   }
 

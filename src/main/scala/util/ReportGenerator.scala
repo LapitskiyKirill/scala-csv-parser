@@ -9,38 +9,43 @@ import scala.collection.immutable.List
 
 class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalStatsFilename: String, usageStatsFilename: String) {
 
-  private def getStatisticsWithNoErrorLines(list: List[DriveInfo]): List[DriveInfo] = {
-    list.filterNot(_.equals(new DriveInfo(Int.MinValue, LocalDateTime.MIN, LocalDateTime.MIN, Int.MinValue, "", Int.MinValue, "", "", "")))
+  private def getStatisticsWithNoErrorLines(list: List[Option[DriveInfo]]): List[Option[DriveInfo]] = {
+    list.filterNot(_.equals(Option.empty))
   }
 
-  private def countErrorParseLines(list: List[DriveInfo]): Int = {
-    list.count(_.equals(new DriveInfo(Int.MinValue, LocalDateTime.MIN, LocalDateTime.MIN, Int.MinValue, "", Int.MinValue, "", "", "")))
+  private def countErrorParseLines(list: List[Option[DriveInfo]]): Int = {
+    list.count(_.equals(Option.empty))
   }
 
-  private def countOfTrips(list: List[DriveInfo]): Int = {
+  private def countOfTrips(list: List[Option[DriveInfo]]): Int = {
     list.size
   }
 
-  private def countOfUsagesBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[DriveInfo]): Int = {
-    list.count(a => (a.getStartDate.isAfter(startDate) && a.getStartDate.isBefore(endDate)) || (a.getEndDate.isAfter(startDate) && a.getEndDate.isBefore(endDate)))
+  private def countOfUsagesBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[Option[DriveInfo]]): Int = {
+    list.count(usage =>
+      (usage.get.startDate.isAfter(startDate) &&
+        usage.get.startDate.isBefore(endDate)) ||
+        (usage.get.endDate.isAfter(startDate) &&
+          usage.get.endDate.isBefore(endDate))
+    )
   }
 
-  private def countOfUniqBicycleUsedBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[DriveInfo]): Int = {
-    val drivesBetweenDates: List[Any] = for (line <- list) yield {
-      if (line.getStartDate.isAfter(startDate) && line.getStartDate.isBefore(endDate) || line.getEndDate.isAfter(startDate) && line.getEndDate.isBefore(endDate)) {
-        line
-      }
-    }
-    //bicyclesUsedBetweenDates.size
-    drivesBetweenDates.filter(line => line.isInstanceOf[DriveInfo]).asInstanceOf[List[DriveInfo]].distinctBy(_.getBikeNumber).size
+  private def countOfUniqBicycleUsedBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[Option[DriveInfo]]): Int = {
+    val drivesBetweenDates = list.filter(usage =>
+      usage.get.startDate.isAfter(startDate) &&
+        usage.get.startDate.isBefore(endDate) ||
+        usage.get.endDate.isAfter(startDate) &&
+          usage.get.endDate.isBefore(endDate)
+    )
+    drivesBetweenDates.filter(line => line.isInstanceOf[Option[DriveInfo]]).distinctBy(_.get.bikeNumber).size
   }
 
-  private def longestDrive(list: List[DriveInfo]) = {
-    val longestDrive = list.maxBy(_.getDuration)
-    s"${longestDrive.getDuration}"
+  private def longestDrive(list: List[Option[DriveInfo]]) = {
+    val longestDrive = list.maxBy(_.get.duration)
+    s"${longestDrive.get.duration}"
   }
 
-  private def generateGeneralStatus(startDate: String, endDate: String, list: List[DriveInfo]): (String, String) = {
+  private def generateGeneralStatus(startDate: String, endDate: String, list: List[Option[DriveInfo]]): (String, String) = {
     val statisticsWithNoErrorLines = getStatisticsWithNoErrorLines(list)
     (directoryPath + generalStatsFilename,
       "\"Count of drives\"," + countOfTrips(statisticsWithNoErrorLines) +
@@ -50,38 +55,35 @@ class ReportGenerator(directoryPath: String, bikeStatsFilename: String, generalS
         "\"\n\"Longest drive\",\"" + longestDrive(statisticsWithNoErrorLines) + "\"")
   }
 
-  private def generateMonthlyDrivesStatisticsReport(list: List[DriveInfo]): (String, String) = {
-    val stats = for (month <- Month.values()) yield ("\"" + month + "\"", "\"" + monthlyDrivesStatistics(month, list) + "\"")
+  private def generateMonthlyDrivesStatisticsReport(list: List[Option[DriveInfo]]): (String, String) = {
+    val stats = Month.values().map(month => ("\"" + month + "\"", "\"" + monthlyDrivesStatistics(month, list) + "\""))
     val report = stats.mkString("\n")
     (directoryPath + usageStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", ""))
   }
 
-  private def generateEachBicycleStatistics(list: List[DriveInfo]): (String, String) = {
-    val stats = createStatisticsMapsForEachBicycle(list.groupBy(_.getBikeNumber)).asInstanceOf[List[(String, Int, Int)]]
+  private def generateEachBicycleStatistics(list: List[Option[DriveInfo]]): (String, String) = {
+    val stats = createStatisticsMapsForEachBicycle(list.groupBy(_.get.bikeNumber)).asInstanceOf[List[(String, Int, Int)]]
     val report = stats.sortBy(_._2)(Ordering.Int.reverse).mkString("\n")
     (directoryPath + bikeStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", ""))
   }
 
-  private def monthlyDrivesStatistics(month: Month, list: List[DriveInfo]): Int = {
-    list.count(line => line.getStartDate.getMonth.equals(month))
+  private def monthlyDrivesStatistics(month: Month, list: List[Option[DriveInfo]]): Int = {
+    list.count(line => line.get.startDate.getMonth.equals(month))
   }
 
-  private def createStatisticsMapsForEachBicycle(map: Map[String, List[DriveInfo]]) = {
-    val stats = for (tuple <- map) yield {
-      Tuple3(tuple._1, countOfDrives(tuple), totalDrivesDuration(tuple))
-    }
-    stats
+  private def createStatisticsMapsForEachBicycle(map: Map[String, List[Option[DriveInfo]]]) = {
+    map.map(tuple => (tuple._1, countOfDrives(tuple), totalDrivesDuration(tuple)))
   }
 
-  private def countOfDrives(stats: (String, List[DriveInfo])): Int = {
+  private def countOfDrives(stats: (String, List[Option[DriveInfo]])): Int = {
     stats._2.size
   }
 
-  private def totalDrivesDuration(stats: (String, List[DriveInfo])): Int = {
-    stats._2.map(_.getDuration).sum
+  private def totalDrivesDuration(stats: (String, List[Option[DriveInfo]])): Int = {
+    stats._2.map(_.get.duration).sum
   }
 
-  def generateReports(startDate: String, endDate: String, list: List[DriveInfo]): Array[(String, String)] = {
+  def generateReports(startDate: String, endDate: String, list: List[Option[DriveInfo]]): Array[(String, String)] = {
     val statisticsWithNoErrorLines = getStatisticsWithNoErrorLines(list)
     Array(
       generateGeneralStatus(startDate, endDate, list),
