@@ -48,7 +48,7 @@ class Reader {
   }
 
   private def validateDriveInfo(driveInfo: DriveInfo): Boolean = {
-    if (!driveInfo.getBikeNumber.startsWith("W")) return false
+    if (!driveInfo.getBikeNumber.matches("W[0-9]{5}")) return false
     if (driveInfo.getStartDate.isAfter(driveInfo.getEndDate)) return false
     if (!List("Member", "Casual").contains(driveInfo.getMemberType)) return false
     true
