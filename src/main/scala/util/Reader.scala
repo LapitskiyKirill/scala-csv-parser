@@ -10,14 +10,14 @@ import scala.io.Source
 object Reader {
   def readFile(fileName: String): List[Option[DriveInfo]] = {
     val source = Source.fromFile(fileName)
-    val lines: List[Option[DriveInfo]] = source.getLines.drop(1).map(line => readLine(line)).toList
+    val lines = source.getLines.drop(1).map(readLine).toList
     source.close()
     lines
   }
 
   private def readLine(line: String): Option[DriveInfo] = {
     try {
-      val iterator: Iterator[String] = line.split(",").iterator
+      val iterator = line.split(",").iterator
       val driveInfo = Some(
         DriveInfo(
           deleteQuotes(iterator.next()).toInt,

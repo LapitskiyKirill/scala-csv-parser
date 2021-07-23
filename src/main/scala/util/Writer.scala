@@ -1,12 +1,14 @@
 package util
 
+import entity.Report
+
 import java.io.PrintWriter
 
 object Writer {
-  def write(info: Array[(String, String)]): Unit = {
+  def write(info: List[Report]): Unit = {
     info.foreach(f = report =>
-      new PrintWriter(report._1) {
-        write(report._2)
+      new PrintWriter(report.filename) {
+        write(report.report)
         close()
       })
   }
