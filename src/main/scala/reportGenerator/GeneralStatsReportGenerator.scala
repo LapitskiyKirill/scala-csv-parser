@@ -37,7 +37,7 @@ class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, g
   private def generateGeneralStatus(dateRange: DateRange, list: List[Option[DriveInfo]]): Report = {
     val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
     Report(directoryPath + generalStatsFilename,
-      "\"Count of drives\"," + countOfTrips(statisticsWithNoErrorLines) +
+      "\"Count of drives\",\"" + countOfTrips(statisticsWithNoErrorLines) +
         "\"\n\"Count of parse errors\",\"" + countErrorParseLines(list) +
         "\"\n\"Count of usages between dates\",\"" + countOfUsagesBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines) +
         "\"\n\"Count of bicycles used between dates\",\"" + countOfUniqBicycleUsedBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines) +

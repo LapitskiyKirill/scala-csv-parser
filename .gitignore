@@ -1,8 +1,4 @@
 /target/
-/bike-stats.cvs
-/build.sbt
-/general-stats.cvs
-/usage-stats.cvs
 /.idea/
 /.bsp/
 /project/
