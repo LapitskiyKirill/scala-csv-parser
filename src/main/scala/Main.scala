@@ -22,6 +22,6 @@ object Main {
     val start = System.nanoTime
     execute()
     val end = System.nanoTime
-    print((end - start) / 1000000000)
+    print((end - start) / 1000000)
   }
 }

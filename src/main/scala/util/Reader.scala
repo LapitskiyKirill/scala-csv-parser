@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.collection.immutable.List
 import scala.io.Source
+import scala.util.{Failure, Success, Try}
 
 object Reader {
   def readFile(fileName: String): List[Option[DriveInfo]] = {
@@ -16,7 +17,7 @@ object Reader {
   }
 
   private def readLine(line: String): Option[DriveInfo] = {
-    try {
+    val parse = Try({
       val iterator = line.split(",").iterator
       val driveInfo = Some(
         DriveInfo(
@@ -31,12 +32,38 @@ object Reader {
           deleteQuotes(iterator.next())
         )
       )
-      if (validateDriveInfo(driveInfo.value)) {
-        driveInfo
-      } else
+      if (!validateDriveInfo(driveInfo.value)) {
+        throw new Exception
+      }
+      driveInfo
+    })
+    parse match {
+      case Success(v) =>
+        v
+      case Failure(e) =>
         Option.empty
-    } catch {
-      case e: Exception => Option.empty
+      //    try {
+      //      val iterator = line.split(",").iterator
+      //      val driveInfo = Some(
+      //        DriveInfo(
+      //          deleteQuotes(iterator.next()).toInt,
+      //          parseTime(deleteQuotes(iterator.next())),
+      //          parseTime(deleteQuotes(iterator.next())),
+      //          deleteQuotes(iterator.next()).toInt,
+      //          deleteQuotes(iterator.next()),
+      //          deleteQuotes(iterator.next()).toInt,
+      //          deleteQuotes(iterator.next()),
+      //          deleteQuotes(iterator.next()),
+      //          deleteQuotes(iterator.next())
+      //        )
+      //      )
+      //      if (validateDriveInfo(driveInfo.value)) {
+      //        driveInfo
+      //      } else
+      //        Option.empty
+      //    } catch {
+      //      case e: Exception => Option.empty
+      //    }
     }
   }
 
