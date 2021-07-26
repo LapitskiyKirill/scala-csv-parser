@@ -5,6 +5,8 @@ import util.Utils
 
 import java.time.Month
 import scala.collection.immutable.List
+import scala.collection.parallel.CollectionConverters._
+
 
 class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: String) extends ReportGenerator {
   override def generate(list: List[Option[DriveInfo]]): Report = {
@@ -19,6 +21,6 @@ class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: Strin
   }
 
   private def monthlyDrivesStatistics(month: Month, list: List[Option[DriveInfo]]): Int = {
-    list.count(line => line.get.startDate.getMonth.equals(month))
+    list.par.count(line => line.get.startDate.getMonth.equals(month))
   }
 }

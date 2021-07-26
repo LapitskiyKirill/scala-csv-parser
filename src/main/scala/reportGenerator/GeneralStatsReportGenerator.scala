@@ -3,6 +3,7 @@ package reportGenerator
 import entity.{DateRange, DriveInfo, Report}
 import util.Utils
 
+import scala.collection.parallel.CollectionConverters._
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.collection.immutable.List
@@ -13,7 +14,7 @@ class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, g
   }
 
   private def countErrorParseLines(list: List[Option[DriveInfo]]): Int = {
-    list.count(_.equals(Option.empty))
+    list.par.count(_.equals(Option.empty))
   }
 
   private def countOfTrips(list: List[Option[DriveInfo]]): Int = {
@@ -21,7 +22,7 @@ class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, g
   }
 
   private def countOfUsagesBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[Option[DriveInfo]]): Int = {
-    list.count(usage => Utils.isDateBetweenTwoAnother(usage.get.startDate, startDate, endDate) || Utils.isDateBetweenTwoAnother(usage.get.endDate, startDate, endDate))
+    list.par.count(usage => Utils.isDateBetweenTwoAnother(usage.get.startDate, startDate, endDate) || Utils.isDateBetweenTwoAnother(usage.get.endDate, startDate, endDate))
   }
 
   private def countOfUniqBicycleUsedBetweenDates(startDate: LocalDateTime, endDate: LocalDateTime, list: List[Option[DriveInfo]]): Int = {

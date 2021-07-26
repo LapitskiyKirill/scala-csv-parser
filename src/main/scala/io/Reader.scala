@@ -9,7 +9,8 @@ import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
 object Reader {
-  def readFile(fileName: String): List[Option[DriveInfo]] = {
+  def readFile(fileNames: List[String]): List[Option[DriveInfo]] = {
+    val fileName = fileNames(0)
     val source = Source.fromFile(fileName)
     val lines = source.getLines.drop(1).map(readLine).toList
     source.close()

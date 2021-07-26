@@ -3,6 +3,7 @@ package reportGenerator
 import entity.{DriveInfo, Report}
 import util.Utils
 
+import scala.collection.parallel.CollectionConverters._
 import scala.collection.immutable.List
 
 class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String) extends ReportGenerator {
@@ -26,6 +27,6 @@ class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String)
   }
 
   private def totalDrivesDuration(stats: (String, List[Option[DriveInfo]])): Int = {
-    stats._2.map(_.get.duration).sum
+    stats._2.par.map(_.get.duration).sum
   }
 }
