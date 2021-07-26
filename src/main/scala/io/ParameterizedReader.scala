@@ -10,6 +10,7 @@ import scala.reflect.runtime.universe._
 import scala.util.{Failure, Success, Try}
 
 class ParameterizedReader[T: TypeTag](validator: Validator, mapper: Mapper) {
+  private val constructor = findConstructor()
 
   def readFile(fileName: String): List[Option[T]] = {
     val source = Source.fromFile(fileName)
@@ -39,12 +40,16 @@ class ParameterizedReader[T: TypeTag](validator: Validator, mapper: Mapper) {
     }
   }
 
-  private def createInstance(args: Seq[Any]): T = {
+  private def findConstructor(): MethodMirror = {
     val tt = typeTag[T]
     currentMirror.reflectClass(tt.tpe.typeSymbol.asClass).reflectConstructor(
       tt.tpe.members.filter(m =>
         m.isMethod && m.asMethod.isConstructor
       ).iterator.toSeq.head.asMethod
-    )(args: _*).asInstanceOf[T]
+    )
+  }
+
+  private def createInstance(args: Seq[Any]): T = {
+    constructor(args: _*).asInstanceOf[T]
   }
 }
