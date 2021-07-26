@@ -1,4 +1,4 @@
-package util
+package reportGenerator
 
 import entity.{DriveInfo, Report}
 

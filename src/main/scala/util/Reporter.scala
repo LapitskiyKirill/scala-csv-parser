@@ -1,7 +1,7 @@
 package util
 
 import entity.{DateRange, DriveInfo, Report}
-
+import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, ReportGenerator, UsageStatsReportGenerator}
 
 import scala.collection.immutable.List
 

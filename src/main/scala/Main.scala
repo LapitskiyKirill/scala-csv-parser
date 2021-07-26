@@ -1,6 +1,9 @@
-import util.{Reader, Reporter, Writer}
+import io.{ParameterizedReader, Reader, Writer}
+import util.Reporter
 import com.typesafe.config.ConfigFactory
-import entity.DateRange
+import entity.{DateRange, DriveInfo}
+import mapper.DriveMapper
+import validator.DriveValidator
 
 object Main {
 
@@ -11,7 +14,8 @@ object Main {
     val generalFilename = config.getString("filename.general")
     val usageFilename = config.getString("filename.usage")
     val path = config.getString("filename.path")
-    val reader = Reader
+    //val reader = Reader
+    val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
     val reporter = new Reporter(path, bikeFilename, generalFilename, usageFilename)
     val writer = Writer
     val list = reader.readFile(path + sourceFilename)

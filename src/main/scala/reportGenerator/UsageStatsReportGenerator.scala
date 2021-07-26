@@ -1,6 +1,7 @@
-package util
+package reportGenerator
 
 import entity.{DriveInfo, Report}
+import util.Utils
 
 import java.time.Month
 import scala.collection.immutable.List

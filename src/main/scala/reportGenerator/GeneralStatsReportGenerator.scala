@@ -1,6 +1,7 @@
-package util
+package reportGenerator
 
 import entity.{DateRange, DriveInfo, Report}
+import util.Utils
 
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
