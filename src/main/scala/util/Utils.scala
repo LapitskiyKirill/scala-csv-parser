@@ -7,7 +7,7 @@ import scala.collection.immutable.List
 
 object Utils {
   def getStatisticsWithNoErrorLines(list: List[Option[DriveInfo]]): List[Option[DriveInfo]] = {
-    list.filterNot(_.equals(Option.empty))
+    list.filterNot(_.isEmpty)
   }
 
   def isDateBetweenTwoAnother(date: LocalDateTime, startDate: LocalDateTime, endDate: LocalDateTime): Boolean = {
