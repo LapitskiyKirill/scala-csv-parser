@@ -1,9 +1,16 @@
-import io.{ParameterizedReader, Reader, Writer}
-import util.Reporter
 import com.typesafe.config.ConfigFactory
-import entity.{DateRange, DriveInfo}
+import entity.{DateRange, DriveInfo, Report}
+import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
+import util.Reporter
 import validator.DriveValidator
+
+import scala.collection.immutable.Seq
+import scala.collection.parallel.CollectionConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, Future}
+import scala.language.postfixOps
 
 object Main {
 
@@ -16,12 +23,12 @@ object Main {
     val bikeFilename = config.getString("filename.bike")
     val generalFilename = config.getString("filename.general")
     val usageFilename = config.getString("filename.usage")
-//    val reader = Reader
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
     val reporter = new Reporter(path, bikeFilename, generalFilename, usageFilename)
-    val writer = Writer
-    val list = reader.readFile(sourceFilenamesListWithPath)
-    writer.write(reporter.generateReports(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), list))
+    val reportsMonad = processFile(reader, reporter, sourceFilenamesListWithPath)
+    Await.ready(reportsMonad, 40000 millis)
+    reportsMonad.map(reports => Writer.write(reports))
+    Thread.sleep(1000)
   }
 
   def main(args: Array[String]): Unit = {
@@ -29,5 +36,20 @@ object Main {
     execute()
     val end = System.nanoTime
     print((end - start) / 1000000)
+  }
+
+  def processFile(reader: ParameterizedReader[DriveInfo], reporter: Reporter, sourceFilenamesListWithPath: List[String]): Future[List[Report]] = {
+    val result: Future[Seq[List[Option[DriveInfo]]]] = Future.sequence(
+      sourceFilenamesListWithPath.par.map(
+        sourceFilenameListWithPath => {
+          Future {
+            reader.readFile(sourceFilenameListWithPath)
+          }
+        }
+      ).seq
+    )
+    result.map(_.flatten.toList).map(
+      records => reporter.generateReports(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), records)
+    )
   }
 }

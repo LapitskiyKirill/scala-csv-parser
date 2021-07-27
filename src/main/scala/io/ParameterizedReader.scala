@@ -13,13 +13,11 @@ import scala.util.{Failure, Success, Try}
 class ParameterizedReader[T: TypeTag](validator: Validator, mapper: Mapper) {
   private val constructor = findConstructor()
 
-  def readFile(fileNames: List[String]): List[Option[T]] = {
-    fileNames.par.flatMap(fileName => {
-      val source = Source.fromFile(fileName)
-      val lines = source.getLines.drop(1).toList.par.map(readLine)
-      source.close()
-      lines
-    }).toList
+  def readFile(fileName: String): List[Option[T]] = {
+    val source = Source.fromFile(fileName)
+    val lines = source.getLines.drop(1).toList.par.map(readLine)
+    source.close()
+    lines.toList
   }
 
   private def readLine(line: String): Option[T] = {
