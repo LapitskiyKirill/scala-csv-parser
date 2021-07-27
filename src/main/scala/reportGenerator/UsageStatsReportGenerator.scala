@@ -8,16 +8,19 @@ import scala.collection.immutable.List
 import scala.collection.parallel.CollectionConverters._
 
 
-class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: String) extends ReportGenerator {
-  override def generate(list: List[Option[DriveInfo]]): Report = {
+class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: String) {
+  def generate(list: List[Option[DriveInfo]]): Array[(String, Int)] = {
     val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
     generateMonthlyDrivesStatisticsReport(statisticsWithNoErrorLines)
   }
 
-  private def generateMonthlyDrivesStatisticsReport(list: List[Option[DriveInfo]]): Report = {
-    val stats = Month.values().map(month => ("\"" + month + "\"", "\"" + monthlyDrivesStatistics(month, list) + "\""))
+  def generateReport(stats: Array[(String, Int)]): Report = {
     val report = stats.mkString("\n")
     Report(directoryPath + usageStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", ""))
+  }
+
+  private def generateMonthlyDrivesStatisticsReport(list: List[Option[DriveInfo]]): Array[(String, Int)] = {
+    Month.values().map(month => ("\"" + month + "\"", + monthlyDrivesStatistics(month, list)  ))
   }
 
   private def monthlyDrivesStatistics(month: Month, list: List[Option[DriveInfo]]): Int = {

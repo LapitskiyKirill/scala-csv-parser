@@ -3,13 +3,13 @@ package reportGenerator
 import entity.{DateRange, DriveInfo, Report}
 import util.Utils
 
-import scala.collection.parallel.CollectionConverters._
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import scala.collection.immutable.List
+import scala.collection.parallel.CollectionConverters._
 
-class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, generalStatsFilename: String) extends ReportGenerator {
-  override def generate(list: List[Option[DriveInfo]]): Report = {
+class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, generalStatsFilename: String) {
+  def generate(list: List[Option[DriveInfo]]): (Int, Int, Int, Int, Int) = {
     generateGeneralStatus(dateRange, list)
   }
 
@@ -31,18 +31,25 @@ class GeneralStatsReportGenerator(dateRange: DateRange, directoryPath: String, g
   }
 
   private def longestDrive(list: List[Option[DriveInfo]]) = {
-    val longestDrive = list.maxBy(_.get.duration)
-    s"${longestDrive.get.duration}"
+    list.maxBy(_.get.duration).map(_.duration)
   }
 
-  private def generateGeneralStatus(dateRange: DateRange, list: List[Option[DriveInfo]]): Report = {
-    val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
+  def generateReport(tuple: (Int, Int, Int, Int, Int)): Report = {
     Report(directoryPath + generalStatsFilename,
-      "\"Count of drives\",\"" + countOfTrips(statisticsWithNoErrorLines) +
-        "\"\n\"Count of parse errors\",\"" + countErrorParseLines(list) +
-        "\"\n\"Count of usages between dates\",\"" + countOfUsagesBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines) +
-        "\"\n\"Count of bicycles used between dates\",\"" + countOfUniqBicycleUsedBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines) +
-        "\"\n\"Longest drive\",\"" + longestDrive(statisticsWithNoErrorLines) + "\"")
+      "\"Count of drives\",\"" + tuple._1 +
+        "\"\n\"Count of parse errors\",\"" + tuple._2 +
+        "\"\n\"Count of usages between dates\",\"" + tuple._3 +
+        "\"\n\"Count of bicycles used between dates\",\"" + tuple._4 +
+        "\"\n\"Longest drive\",\"" + tuple._5 + "\"")
+  }
+
+  private def generateGeneralStatus(dateRange: DateRange, list: List[Option[DriveInfo]]): (Int, Int, Int, Int, Int) = {
+    val statisticsWithNoErrorLines = Utils.getStatisticsWithNoErrorLines(list)
+    (countOfTrips(statisticsWithNoErrorLines),
+      countErrorParseLines(list),
+      countOfUsagesBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines),
+      countOfUniqBicycleUsedBetweenDates(parseTime(dateRange.startDate), parseTime(dateRange.endDate), statisticsWithNoErrorLines),
+      longestDrive(statisticsWithNoErrorLines).getOrElse(0))
   }
 
   private def parseTime(dateTime: String): LocalDateTime = {
