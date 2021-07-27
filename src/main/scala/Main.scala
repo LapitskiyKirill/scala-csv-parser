@@ -9,7 +9,7 @@ import validator.DriveValidator
 import scala.collection.immutable.Seq
 import scala.collection.parallel.CollectionConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 
@@ -27,9 +27,8 @@ object Main {
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
     val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
     val reportsMonad = processFile(reader, reporter, sourceFilenamesListWithPath)
-    Await.ready(reportsMonad, 40000 millis)
-    reportsMonad.map(reports => Writer.write(reports))
-    Thread.sleep(1000)
+    val a = reportsMonad.map(reports => Writer.write(reports))
+    Await.ready(a, Duration.Inf)
   }
 
   def main(args: Array[String]): Unit = {
@@ -44,16 +43,34 @@ object Main {
     val usageStatsReportGenerator = new UsageStatsReportGenerator(reporter.directoryPath, reporter.usageStatsFilename)
     val generalStatsReportGenerator = new GeneralStatsReportGenerator(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), reporter.directoryPath, reporter.generalStatsFilename)
     val result: Future[List[Report]] = {
-      val reports: Seq[(List[(String, Int, Int)], Array[(String, Int)], (Int, Int, Int, Int, Int))] = sourceFilenamesListWithPath.par.map(
-        sourceFilenameListWithPath => {
+      val reports: Future[Seq[(List[(String, Int, Int)], Array[(String, Int)], (Int, Int, Int, Int, Int))]] = Future.sequence(sourceFilenamesListWithPath.par.map(
+        sourceFilenameListWithPath => Future {
           val lines = reader.readFile(sourceFilenameListWithPath)
           (bikeStatsReportGenerator.generate(lines), usageStatsReportGenerator.generate(lines), generalStatsReportGenerator.generate(lines))
-        }).seq
-      val bikeStats = reports.flatMap(_._1).groupBy(_._1).map(map => (map._1, map._2.map(_._2).sum, map._2.map(_._3).sum)).toList
-      val usageStats = reports.flatMap(_._2).groupBy(_._1).map(map => (map._1, map._2.map(_._2).sum)).toArray
-      val generalStatsList = reports.map(_._3)
-      val generalStats = (generalStatsList.map(_._1).sum, generalStatsList.map(_._2).sum, generalStatsList.map(_._3).sum, generalStatsList.map(_._4).sum, generalStatsList.map(_._5).sum)
-      Future(List(bikeStatsReportGenerator.generateReport(bikeStats), usageStatsReportGenerator.generateReport(usageStats), generalStatsReportGenerator.generateReport(generalStats)))
+        }).seq)
+      val bikeStats = reports.map(_.flatMap(_._1).groupBy(_._1).map(map => (map._1, map._2.map(_._2).sum, map._2.map(_._3).sum)).toList)
+      val usageStats = reports.map(_.flatMap(_._2).groupBy(_._1).map(map => (map._1, map._2.map(_._2).sum)).toArray)
+      val generalStatsFuture = reports.map(_.map(_._3))
+      val generalStatsList = Future.sequence(
+        List(
+          generalStatsFuture.map(_.map(_._1).sum),
+          generalStatsFuture.map(_.map(_._2).sum),
+          generalStatsFuture.map(_.map(_._3).sum),
+          generalStatsFuture.map(_.map(_._4).sum),
+          generalStatsFuture.map(_.map(_._5).sum)
+        )
+      )
+      val generalStats = generalStatsList.map(int => {
+        val iterator = int.iterator
+        (iterator.next(), iterator.next(), iterator.next(), iterator.next(), iterator.next())
+      })
+      Future.sequence(
+        List(
+          bikeStats.map(bikeStatsReportGenerator.generateReport),
+          usageStats.map(usageStatsReportGenerator.generateReport),
+          generalStats.map(generalStatsReportGenerator.generateReport)
+        )
+      )
     }
     result
   }
