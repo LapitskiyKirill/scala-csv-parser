@@ -1,5 +1,6 @@
+import com.typesafe.config.ConfigException.Null
 import com.typesafe.config.ConfigFactory
-import entity.{BikeReport, DateRange, DriveInfo, GeneralReport, Report, UsageReport}
+import entity.{BikeReport, DataBase, DateRange, Drive, DriveInfo, GeneralReport, Report, Station, Tables, UsageReport}
 import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
 import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, UsageStatsReportGenerator}
@@ -12,6 +13,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
+import slick.jdbc.JdbcBackend.Database
+import slick.jdbc.PostgresProfile.api._
+import slick.lifted.TableQuery
 
 object Main {
 
@@ -21,13 +25,52 @@ object Main {
     val sourceFilenames = config.getString("filename.source")
     val sourceFilenamesList: List[String] = sourceFilenames.split(",").toList
     val sourceFilenamesListWithPath = sourceFilenamesList.map(path + _)
-    val bikeFilename = config.getString("filename.bike")
-    val generalFilename = config.getString("filename.general")
-    val usageFilename = config.getString("filename.usage")
+    //    val bikeFilename = config.getString("filename.bike")
+    //    val generalFilename = config.getString("filename.general")
+    //    val usageFilename = config.getString("filename.usage")
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
-    val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
-    val reportsMonad = processAll(reader, reporter, sourceFilenamesListWithPath)
-    val a = reportsMonad.map(Writer.write)
+    //    val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
+    //    val reportsMonad = processAll(reader, reporter, sourceFilenamesListWithPath)
+    //    val a = reportsMonad.map(Writer.write)
+    //    Await.ready(a, Duration.Inf)
+    saveEntities(reader, sourceFilenamesListWithPath.head)
+    val a = readEntities()
+    Await.ready(a, Duration.Inf)
+  }
+
+  def readEntities(): Future[Seq[Drive]] = {
+    val a = DataBase.db.run[Seq[Drive]](Tables.drives.result)
+    Await.ready(a, Duration.Inf)
+    println(a.map(b => println(b.size)))
+    a
+  }
+
+  def saveEntities(reader: ParameterizedReader[DriveInfo], sourceFilenameWithPath: String): Unit = {
+    val lines = reader.readFile(sourceFilenameWithPath)
+    val stations = lines.flatMap(a => Option.option2Iterable(a)
+      .map(line => List(
+        Station(line.startStationNumber, line.startStation),
+        Station(line.endStationNumber, line.endStation)
+      )
+      ).toList.flatten
+    ).distinctBy(_.stationNumber)
+    val insertStationsQuery = Tables.stations ++= stations
+    DataBase.db.run(insertStationsQuery)
+    val drives = lines.flatMap(a => Option.option2Iterable(a)
+      .map(line =>
+        Drive(
+          line.duration,
+          line.startDate,
+          line.endDate,
+          line.startStationNumber,
+          line.endStationNumber,
+          line.bikeNumber,
+          line.memberType
+        ),
+      )
+    )
+    val insertDrivesQuery = Tables.drives ++= drives
+    val a = DataBase.db.run(insertDrivesQuery)
     Await.ready(a, Duration.Inf)
   }
 
@@ -79,16 +122,16 @@ object Main {
     val bikeStatsReportGenerator = new BikeStatsReportGenerator(reporter.directoryPath, reporter.bikeStatsFilename)
     val usageStatsReportGenerator = new UsageStatsReportGenerator(reporter.directoryPath, reporter.usageStatsFilename)
     val generalStatsReportGenerator = new GeneralStatsReportGenerator(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), reporter.directoryPath, reporter.generalStatsFilename)
-    //for each file-> process
+    //    for each file-> process
     val reports = Future.sequence(sourceFilenamesListWithPath.par.map(
-      sourceFilenameListWithPath =>
+      sourceFilenameWithPath =>
         process(bikeStatsReportGenerator,
           usageStatsReportGenerator,
           generalStatsReportGenerator,
           reader,
-          sourceFilenameListWithPath)
+          sourceFilenameWithPath)
     ).seq)
-    //merge all reports
+    //    merge all reports
     merge(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, reports).flatMap(a => Future.sequence(a))
 
   }
@@ -108,8 +151,8 @@ object Main {
   }
 
   //read
-  def read(reader: ParameterizedReader[DriveInfo], sourceFilenameListWithPath: String): Future[List[Option[DriveInfo]]] = {
-    Future(reader.readFile(sourceFilenameListWithPath))
+  def read(reader: ParameterizedReader[DriveInfo], sourceFilenameWithPath: String): Future[List[Option[DriveInfo]]] = {
+    Future(reader.readFile(sourceFilenameWithPath))
   }
 
   //get reports

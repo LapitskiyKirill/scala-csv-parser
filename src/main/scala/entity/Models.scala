@@ -1,6 +1,9 @@
 package entity
 
+import slick.lifted.{Rep, Tag}
+import slick.model.Table
 import java.time.LocalDateTime
+import slick.jdbc.PostgresProfile.api._
 
 case class Report(filename: String, report: String)
 
@@ -39,3 +42,18 @@ case class UsageReport(
                         monthName: String,
                         countOfDrives: Int
                       )
+
+case class Drive(
+                  duration: Int,
+                  startDate: LocalDateTime,
+                  endDate: LocalDateTime,
+                  startStation: Int,
+                  endStation: Int,
+                  bikeNumber: String,
+                  memberType: String
+                )
+
+case class Station(
+                    stationNumber: Int,
+                    stationName: String,
+                  )
