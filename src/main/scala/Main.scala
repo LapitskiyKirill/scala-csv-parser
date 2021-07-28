@@ -27,10 +27,7 @@ object Main {
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
     val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
     val reportsMonad = processAll(reader, reporter, sourceFilenamesListWithPath)
-    val a = reportsMonad.map(reports => {
-      val z = Future.sequence(reports).map(Writer.write)
-      Await.ready(z, Duration.Inf)
-    })
+    val a = reportsMonad.map(Writer.write)
     Await.ready(a, Duration.Inf)
   }
 
@@ -78,7 +75,7 @@ object Main {
   //    result
   //  }
 
-  def processAll(reader: ParameterizedReader[DriveInfo], reporter: Reporter, sourceFilenamesListWithPath: List[String]): Future[List[Future[Report]]] = {
+  def processAll(reader: ParameterizedReader[DriveInfo], reporter: Reporter, sourceFilenamesListWithPath: List[String]): Future[List[Report]] = {
     val bikeStatsReportGenerator = new BikeStatsReportGenerator(reporter.directoryPath, reporter.bikeStatsFilename)
     val usageStatsReportGenerator = new UsageStatsReportGenerator(reporter.directoryPath, reporter.usageStatsFilename)
     val generalStatsReportGenerator = new GeneralStatsReportGenerator(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), reporter.directoryPath, reporter.generalStatsFilename)
@@ -92,7 +89,7 @@ object Main {
           sourceFilenameListWithPath)
     ).seq)
     //merge all reports
-    merge(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, reports)
+    merge(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, reports).flatMap(a => Future.sequence(a))
 
   }
 
