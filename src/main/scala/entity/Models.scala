@@ -16,4 +16,26 @@ case class DriveInfo(
                       memberType: String
                     )
 
-case class DateRange(startDate: String, endDate: String)
+case class DateRange(
+                      startDate: String,
+                      endDate: String
+                    )
+
+case class BikeReport(
+                       bikeNumber: String,
+                       countOfDrives: Int,
+                       totalDuration: Int
+                     )
+
+case class GeneralReport(
+                          countOfDrives: Int,
+                          countOfParseErrors: Int,
+                          countOfUsagesBetweenDates: Int,
+                          countOfBicyclesUsedBetweenDates: Int,
+                          longestDrive: Int
+                        )
+
+case class UsageReport(
+                        monthName: String,
+                        countOfDrives: Int
+                      )

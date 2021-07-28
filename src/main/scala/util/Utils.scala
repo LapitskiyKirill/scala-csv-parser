@@ -4,10 +4,13 @@ import entity.DriveInfo
 
 import java.time.LocalDateTime
 import scala.collection.immutable.List
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 
 object Utils {
-  def getStatisticsWithNoErrorLines(list: List[Option[DriveInfo]]): List[Option[DriveInfo]] = {
-    list.filterNot(_.isEmpty)
+  def getStatisticsWithNoErrorLines(list: Future[List[Option[DriveInfo]]]): Future[List[Option[DriveInfo]]] = {
+    list.map(_.filterNot(_.isEmpty))
   }
 
   def isDateBetweenTwoAnother(date: LocalDateTime, startDate: LocalDateTime, endDate: LocalDateTime): Boolean = {
