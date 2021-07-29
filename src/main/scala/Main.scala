@@ -1,10 +1,8 @@
-import com.typesafe.config.ConfigFactory
 import entity._
 import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
 import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, UsageStatsReportGenerator}
-import repository.{DriveRepository, StationRepository}
-import util.{Reporter, Utils}
+import util.{Config, Reporter, Utils}
 import validator.DriveValidator
 
 import scala.collection.immutable.Seq
@@ -16,54 +14,55 @@ import scala.language.postfixOps
 object Main {
 
   def execute(): Unit = {
-    val config = ConfigFactory.load
-    val path = config.getString("filename.path")
-    val sourceFilenames = config.getString("filename.source")
-    val sourceFilenamesList: List[String] = sourceFilenames.split(",").toList
-    val sourceFilenamesListWithPath = sourceFilenamesList.map(path + _)
-    val bikeFilename = config.getString("filename.bike")
-    val generalFilename = config.getString("filename.general")
-    val usageFilename = config.getString("filename.usage")
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
-    val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
-    val save = readAndSaveData(reader, sourceFilenamesListWithPath)
-    val result = save.map(s => {
-      val drives = DriveRepository.readAll()
-      val stations = StationRepository.readAll()
-      val driveInfo = Utils.mapToDriveInfo(drives, stations)
-      processAll(reporter, driveInfo).map(reports => Writer.write(reports))
+    val reporter = Reporter(Config.path, Config.bikeFilename, Config.generalFilename, Config.usageFilename)
+    val driveRepository = new DriveRepository()
+    val stationRepository = new StationRepository()
+    val save = readAndSaveData(stationRepository, driveRepository, reader, Config.sourceFilenamesListWithPath)
+    val result = save.map(_ => {
+      processAll(
+        reporter,
+        stationRepository.readAll().map(stations =>
+          driveRepository.readAll().map(drives => {
+            Utils.mapToDriveInfo(
+              drives,
+              stations
+            )
+          })
+        ).flatten
+      ).map(Writer.write)
     }).flatten
     Await.ready(result, Duration.Inf)
   }
 
-  def readAndSaveData(reader: ParameterizedReader[DriveInfo], files: List[String]): Future[List[Int]] = {
+  def readAndSaveData(stationRepository: StationRepository, driveRepository: DriveRepository, reader: ParameterizedReader[DriveInfo], files: List[String]): Future[List[Int]] = {
     val result = Future(files.map(fileName => {
       val lines = reader.readFile(fileName)
-      val insertedStations = saveStations(lines)
-      val insertedDrives = insertedStations.map(_ => saveDrives(lines)).flatten
+      val insertedStations = saveStations(stationRepository, lines)
+      val insertedDrives = insertedStations.map(_ => saveDrives(driveRepository, lines)).flatten
       (insertedStations, insertedDrives)
     }))
     result.map(res => {
-      val insertedStations = Future.sequence(res.map(tuple => tuple._1))
+      val insertedStations = Future.sequence(res.map(_._1))
         .map(_.sum)
-      val insertedDrives = Future.sequence(res.map(tuple => tuple._2))
-        .map(list => list.flatMap(a => Option.option2Iterable(a)))
+      val insertedDrives = Future.sequence(res.map(_._2))
+        .map(_.flatMap(a => Option.option2Iterable(a)))
         .map(_.sum)
       Future.sequence(List(insertedDrives, insertedStations))
     }).flatten
   }
 
-  def saveStations(lines: List[Option[DriveInfo]]): Future[Int] = {
+  def saveStations(stationRepository: StationRepository, lines: List[Option[DriveInfo]]): Future[Int] = {
     val stations = Utils.mapToStation(lines)
     Future.sequence(stations.map(station => {
-      StationRepository.insert(station)
+      stationRepository.insert(station)
     }
     )).map(_.sum)
   }
 
-  def saveDrives(lines: List[Option[DriveInfo]]): Future[Option[Int]] = {
+  def saveDrives(driveRepository: DriveRepository, lines: List[Option[DriveInfo]]): Future[Option[Int]] = {
     val drives = Utils.mapToDrive(lines)
-    DriveRepository.insertAll(drives)
+    driveRepository.insertAll(drives)
   }
 
   def main(args: Array[String]): Unit = {
@@ -120,7 +119,7 @@ object Main {
       drives
     )
     //    merge all reports
-    getReports(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, Future(reports)).flatMap(a => Future.sequence(a))
+    getReports(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, Future(reports))
   }
 
   def process(bikeStatsReportGenerator: BikeStatsReportGenerator,
@@ -136,14 +135,14 @@ object Main {
   def getReports(bikeStatsReportGenerator: BikeStatsReportGenerator,
                  usageStatsReportGenerator: UsageStatsReportGenerator,
                  generalStatsReportGenerator: GeneralStatsReportGenerator,
-                 futureReports: Future[(Future[List[BikeReport]], Future[List[UsageReport]], Future[GeneralReport])]): Future[List[Future[Report]]] = {
+                 futureReports: Future[(Future[List[BikeReport]], Future[List[UsageReport]], Future[GeneralReport])]): Future[List[Report]] = {
     futureReports.map(reports => {
       List(
         bikeStatsReportGenerator.generateReport(reports._1),
         usageStatsReportGenerator.generateReport(reports._2),
         generalStatsReportGenerator.generateReport(reports._3)
       )
-    })
+    }).flatMap(a => Future.sequence(a))
   }
 
   //read

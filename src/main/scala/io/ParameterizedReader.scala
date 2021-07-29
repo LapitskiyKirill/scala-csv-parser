@@ -36,7 +36,7 @@ class ParameterizedReader[T: TypeTag](validator: Validator, mapper: Mapper) {
     parse match {
       case Success(v) =>
         v
-      case Failure(e) =>
+      case Failure(_) =>
         Option.empty
     }
   }

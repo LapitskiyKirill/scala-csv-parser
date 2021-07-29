@@ -29,6 +29,6 @@ class UsageStatsReportGenerator(directoryPath: String, usageStatsFilename: Strin
   }
 
   private def monthlyDrivesStatistics(month: Month, list: Future[List[Option[DriveInfo]]]): Future[Int] = {
-    list.map(_.par.count(line => line.get.startDate.getMonth.equals(month)))
+    list.map(_.par.count(_.get.startDate.getMonth.equals(month)))
   }
 }

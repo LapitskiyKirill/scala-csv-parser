@@ -1,7 +1,6 @@
 package util
 
-import entity.{DataBase, Drive, DriveInfo, Station, Tables}
-import repository.StationRepository
+import entity.{Drive, DriveInfo, Station}
 
 import java.time.LocalDateTime
 import scala.collection.immutable.{List, Seq}
@@ -19,23 +18,20 @@ object Utils {
       (date.isAfter(startDate) && date.isBefore(endDate))
   }
 
-  def mapToDriveInfo(drives: Future[Seq[Drive]], stations: Future[Seq[Station]]): Future[List[Option[DriveInfo]]] = {
-    stations.map(stations =>
-      drives.map(_.map(drive => {
-        Option(DriveInfo(
-          drive.duration,
-          drive.startDate,
-          drive.endDate,
-          drive.startStation,
-          stations.filter(_.stationNumber == drive.startStation).head.stationName,
-          drive.endStation,
-          stations.filter(_.stationNumber == drive.startStation).head.stationName,
-          drive.bikeNumber,
-          drive.memberType
-        ))
-      }).toList
-      )
-    ).flatten
+  def mapToDriveInfo(drives: Seq[Drive], stations: Seq[Station]): List[Option[DriveInfo]] = {
+    drives.map(drive => {
+      Option(DriveInfo(
+        drive.duration,
+        drive.startDate,
+        drive.endDate,
+        drive.startStation,
+        stations.filter(_.stationNumber == drive.startStation).head.stationName,
+        drive.endStation,
+        stations.filter(_.stationNumber == drive.startStation).head.stationName,
+        drive.bikeNumber,
+        drive.memberType
+      ))
+    }).toList
   }
 
   def mapToDrive(lines: List[Option[DriveInfo]]): List[Drive] = {

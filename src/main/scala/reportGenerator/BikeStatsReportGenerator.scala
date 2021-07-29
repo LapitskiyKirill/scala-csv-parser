@@ -25,7 +25,7 @@ class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String)
   }
 
   private def createStatisticsMapsForEachBicycle(map: Future[Map[String, List[Option[DriveInfo]]]]) = {
-    map.map(a => a.map(tuple => BikeReport(tuple._1, countOfDrives(tuple), totalDrivesDuration(tuple))))
+    map.map(_.map(tuple => BikeReport(tuple._1, countOfDrives(tuple), totalDrivesDuration(tuple))))
   }
 
   private def countOfDrives(stats: (String, List[Option[DriveInfo]])): Int = {
