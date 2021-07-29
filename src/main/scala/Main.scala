@@ -1,11 +1,9 @@
 import com.typesafe.config.ConfigFactory
-import entity.{DriveTable, StationTable, _}
+import entity._
 import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
 import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, UsageStatsReportGenerator}
-import slick.jdbc.JdbcBackend.Database
 import slick.jdbc.PostgresProfile.api._
-import slick.lifted.TableQuery
 import util.Reporter
 import validator.DriveValidator
 
@@ -46,7 +44,6 @@ object Main {
 
   def mapToDriveInfo(drives: Future[Seq[Drive]]): Future[List[Option[DriveInfo]]] = {
     val stationsResult = DataBase.db.run[Seq[Station]](Tables.stations.result)
-    Await.ready(stationsResult, Duration.Inf)
     val driveInfo = stationsResult.map(stations =>
       drives.map(_.map(drive => {
         Option(DriveInfo(
@@ -78,7 +75,7 @@ object Main {
     stations.foreach(station => {
       val exists = DataBase.db.run(Tables.stations.filter(_.stationNumber === station.stationNumber).exists.result)
       exists.map(result => if (!result) {
-        val insertStationsQuery = Tables.stations += station;
+        val insertStationsQuery = Tables.stations += station
         DataBase.db.run(insertStationsQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
       })
     })
@@ -99,7 +96,6 @@ object Main {
     val insertDrivesQuery = Tables.drives ++= drives
     val save = DataBase.db.run(insertDrivesQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
     Await.ready(save, Duration.Inf)
-
   }
 
   def main(args: Array[String]): Unit = {
