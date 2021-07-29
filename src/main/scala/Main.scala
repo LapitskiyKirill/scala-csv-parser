@@ -3,8 +3,8 @@ import entity._
 import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
 import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, UsageStatsReportGenerator}
-import slick.jdbc.PostgresProfile.api._
-import util.Reporter
+import repository.{DriveRepository, StationRepository}
+import util.{Reporter, Utils}
 import validator.DriveValidator
 
 import scala.collection.immutable.Seq
@@ -26,76 +26,44 @@ object Main {
     val usageFilename = config.getString("filename.usage")
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
     val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
-
-    val save = Future(sourceFilenamesListWithPath.foreach(sourceFilenameWithPath =>
-      saveEntities(reader, sourceFilenameWithPath)
-    ))
-    Await.ready(save, Duration.Inf)
-    val drives = readEntities()
-    val driveInfo = mapToDriveInfo(drives)
-    val reportsMonad = processAll(reporter, driveInfo)
-    val write = reportsMonad.map(reports => Writer.write(reports))
-    Await.ready(write, Duration.Inf)
+    val save = readAndSaveData(reader, sourceFilenamesListWithPath)
+    val result = save.map(s => {
+      val drives = DriveRepository.readAll()
+      val stations = StationRepository.readAll()
+      val driveInfo = Utils.mapToDriveInfo(drives, stations)
+      processAll(reporter, driveInfo).map(reports => Writer.write(reports))
+    }).flatten
+    Await.ready(result, Duration.Inf)
   }
 
-  def readEntities(): Future[Seq[Drive]] = {
-    DataBase.db.run[Seq[Drive]](Tables.drives.result)
+  def readAndSaveData(reader: ParameterizedReader[DriveInfo], files: List[String]): Future[List[Int]] = {
+    val result = Future(files.map(fileName => {
+      val lines = reader.readFile(fileName)
+      val insertedStations = saveStations(lines)
+      val insertedDrives = insertedStations.map(_ => saveDrives(lines)).flatten
+      (insertedStations, insertedDrives)
+    }))
+    result.map(res => {
+      val insertedStations = Future.sequence(res.map(tuple => tuple._1))
+        .map(_.sum)
+      val insertedDrives = Future.sequence(res.map(tuple => tuple._2))
+        .map(list => list.flatMap(a => Option.option2Iterable(a)))
+        .map(_.sum)
+      Future.sequence(List(insertedDrives, insertedStations))
+    }).flatten
   }
 
-  def mapToDriveInfo(drives: Future[Seq[Drive]]): Future[List[Option[DriveInfo]]] = {
-    val stationsResult = DataBase.db.run[Seq[Station]](Tables.stations.result)
-    val driveInfo = stationsResult.map(stations =>
-      drives.map(_.map(drive => {
-        Option(DriveInfo(
-          drive.duration,
-          drive.startDate,
-          drive.endDate,
-          drive.startStation,
-          stations.filter(_.stationNumber == drive.startStation).head.stationName,
-          drive.endStation,
-          stations.filter(_.stationNumber == drive.startStation).head.stationName,
-          drive.bikeNumber,
-          drive.memberType
-        ))
-      }).toList
-      )
-    ).flatten
-    driveInfo
+  def saveStations(lines: List[Option[DriveInfo]]): Future[Int] = {
+    val stations = Utils.mapToStation(lines)
+    Future.sequence(stations.map(station => {
+      StationRepository.insert(station)
+    }
+    )).map(_.sum)
   }
 
-  def saveEntities(reader: ParameterizedReader[DriveInfo], sourceFilenameWithPath: String): Unit = {
-    val lines = reader.readFile(sourceFilenameWithPath)
-    val stations = lines.flatMap(a => Option.option2Iterable(a)
-      .map(line => List(
-        Station(line.startStationNumber, line.startStation),
-        Station(line.endStationNumber, line.endStation)
-      )
-      ).toList.flatten
-    ).distinctBy(_.stationNumber)
-    stations.foreach(station => {
-      val exists = DataBase.db.run(Tables.stations.filter(_.stationNumber === station.stationNumber).exists.result)
-      exists.map(result => if (!result) {
-        val insertStationsQuery = Tables.stations += station
-        DataBase.db.run(insertStationsQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
-      })
-    })
-
-    val drives = lines.flatMap(a => Option.option2Iterable(a)
-      .map(line =>
-        Drive(
-          line.duration,
-          line.startDate,
-          line.endDate,
-          line.startStationNumber,
-          line.endStationNumber,
-          line.bikeNumber,
-          line.memberType
-        ),
-      )
-    )
-    val insertDrivesQuery = Tables.drives ++= drives
-    val save = DataBase.db.run(insertDrivesQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
-    Await.ready(save, Duration.Inf)
+  def saveDrives(lines: List[Option[DriveInfo]]): Future[Option[Int]] = {
+    val drives = Utils.mapToDrive(lines)
+    DriveRepository.insertAll(drives)
   }
 
   def main(args: Array[String]): Unit = {
