@@ -21,7 +21,7 @@ class BikeStatsReportGenerator(directoryPath: String, bikeStatsFilename: String)
 
   def generateReport(stats: Future[List[BikeReport]]): Future[Report] = {
     val futureReport = stats.map(_.sortBy(_.countOfDrives)(Ordering.Int.reverse).mkString("\n"))
-    futureReport.map(report => Report(directoryPath + bikeStatsFilename, report.replaceAll("\\(", "").replaceAll("\\)", "")))
+    futureReport.map(report => Report(directoryPath + bikeStatsFilename, report.replaceAll("BikeReport\\(", "").replaceAll("\\)", "")))
   }
 
   private def createStatisticsMapsForEachBicycle(map: Future[Map[String, List[Option[DriveInfo]]]]) = {

@@ -1,21 +1,19 @@
-import com.typesafe.config.ConfigException.Null
 import com.typesafe.config.ConfigFactory
-import entity.{BikeReport, DataBase, DateRange, Drive, DriveInfo, GeneralReport, Report, Station, Tables, UsageReport}
+import entity.{DriveTable, StationTable, _}
 import io.{ParameterizedReader, Writer}
 import mapper.DriveMapper
 import reportGenerator.{BikeStatsReportGenerator, GeneralStatsReportGenerator, UsageStatsReportGenerator}
+import slick.jdbc.JdbcBackend.Database
+import slick.jdbc.PostgresProfile.api._
+import slick.lifted.TableQuery
 import util.Reporter
 import validator.DriveValidator
 
 import scala.collection.immutable.Seq
-import scala.collection.parallel.CollectionConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.{Duration, DurationInt}
+import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
-import slick.jdbc.JdbcBackend.Database
-import slick.jdbc.PostgresProfile.api._
-import slick.lifted.TableQuery
 
 object Main {
 
@@ -25,24 +23,47 @@ object Main {
     val sourceFilenames = config.getString("filename.source")
     val sourceFilenamesList: List[String] = sourceFilenames.split(",").toList
     val sourceFilenamesListWithPath = sourceFilenamesList.map(path + _)
-    //    val bikeFilename = config.getString("filename.bike")
-    //    val generalFilename = config.getString("filename.general")
-    //    val usageFilename = config.getString("filename.usage")
+    val bikeFilename = config.getString("filename.bike")
+    val generalFilename = config.getString("filename.general")
+    val usageFilename = config.getString("filename.usage")
     val reader = new ParameterizedReader[DriveInfo](DriveValidator, DriveMapper)
-    //    val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
-    //    val reportsMonad = processAll(reader, reporter, sourceFilenamesListWithPath)
-    //    val a = reportsMonad.map(Writer.write)
-    //    Await.ready(a, Duration.Inf)
-    saveEntities(reader, sourceFilenamesListWithPath.head)
-    val a = readEntities()
-    Await.ready(a, Duration.Inf)
+    val reporter = Reporter(path, bikeFilename, generalFilename, usageFilename)
+
+    val save = Future(sourceFilenamesListWithPath.foreach(sourceFilenameWithPath =>
+      saveEntities(reader, sourceFilenameWithPath)
+    ))
+    Await.ready(save, Duration.Inf)
+    val drives = readEntities()
+    val driveInfo = mapToDriveInfo(drives)
+    val reportsMonad = processAll(reporter, driveInfo)
+    val write = reportsMonad.map(reports => Writer.write(reports))
+    Await.ready(write, Duration.Inf)
   }
 
   def readEntities(): Future[Seq[Drive]] = {
-    val a = DataBase.db.run[Seq[Drive]](Tables.drives.result)
-    Await.ready(a, Duration.Inf)
-    println(a.map(b => println(b.size)))
-    a
+    DataBase.db.run[Seq[Drive]](Tables.drives.result)
+  }
+
+  def mapToDriveInfo(drives: Future[Seq[Drive]]): Future[List[Option[DriveInfo]]] = {
+    val stationsResult = DataBase.db.run[Seq[Station]](Tables.stations.result)
+    Await.ready(stationsResult, Duration.Inf)
+    val driveInfo = stationsResult.map(stations =>
+      drives.map(_.map(drive => {
+        Option(DriveInfo(
+          drive.duration,
+          drive.startDate,
+          drive.endDate,
+          drive.startStation,
+          stations.filter(_.stationNumber == drive.startStation).head.stationName,
+          drive.endStation,
+          stations.filter(_.stationNumber == drive.startStation).head.stationName,
+          drive.bikeNumber,
+          drive.memberType
+        ))
+      }).toList
+      )
+    ).flatten
+    driveInfo
   }
 
   def saveEntities(reader: ParameterizedReader[DriveInfo], sourceFilenameWithPath: String): Unit = {
@@ -54,8 +75,14 @@ object Main {
       )
       ).toList.flatten
     ).distinctBy(_.stationNumber)
-    val insertStationsQuery = Tables.stations ++= stations
-    DataBase.db.run(insertStationsQuery)
+    stations.foreach(station => {
+      val exists = DataBase.db.run(Tables.stations.filter(_.stationNumber === station.stationNumber).exists.result)
+      exists.map(result => if (!result) {
+        val insertStationsQuery = Tables.stations += station;
+        DataBase.db.run(insertStationsQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
+      })
+    })
+
     val drives = lines.flatMap(a => Option.option2Iterable(a)
       .map(line =>
         Drive(
@@ -70,8 +97,9 @@ object Main {
       )
     )
     val insertDrivesQuery = Tables.drives ++= drives
-    val a = DataBase.db.run(insertDrivesQuery)
-    Await.ready(a, Duration.Inf)
+    val save = DataBase.db.run(insertDrivesQuery).recover { ex: Throwable => println("Error occurred when inserting user", ex) }
+    Await.ready(save, Duration.Inf)
+
   }
 
   def main(args: Array[String]): Unit = {
@@ -118,36 +146,40 @@ object Main {
   //    result
   //  }
 
-  def processAll(reader: ParameterizedReader[DriveInfo], reporter: Reporter, sourceFilenamesListWithPath: List[String]): Future[List[Report]] = {
+  def processAll(reporter: Reporter, drives: Future[List[Option[DriveInfo]]]): Future[List[Report]] = {
     val bikeStatsReportGenerator = new BikeStatsReportGenerator(reporter.directoryPath, reporter.bikeStatsFilename)
     val usageStatsReportGenerator = new UsageStatsReportGenerator(reporter.directoryPath, reporter.usageStatsFilename)
     val generalStatsReportGenerator = new GeneralStatsReportGenerator(DateRange("2010-09-20 12:26:08", "2010-10-26 12:26:08"), reporter.directoryPath, reporter.generalStatsFilename)
-    //    for each file-> process
-    val reports = Future.sequence(sourceFilenamesListWithPath.par.map(
-      sourceFilenameWithPath =>
-        process(bikeStatsReportGenerator,
-          usageStatsReportGenerator,
-          generalStatsReportGenerator,
-          reader,
-          sourceFilenameWithPath)
-    ).seq)
+    val reports = process(bikeStatsReportGenerator,
+      usageStatsReportGenerator,
+      generalStatsReportGenerator,
+      drives
+    )
     //    merge all reports
-    merge(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, reports).flatMap(a => Future.sequence(a))
-
+    getReports(bikeStatsReportGenerator, usageStatsReportGenerator, generalStatsReportGenerator, Future(reports)).flatMap(a => Future.sequence(a))
   }
 
   def process(bikeStatsReportGenerator: BikeStatsReportGenerator,
               usageStatsReportGenerator: UsageStatsReportGenerator,
               generalStatsReportGenerator: GeneralStatsReportGenerator,
-              reader: ParameterizedReader[DriveInfo],
-              sourceFilenameListWithPath: String): Future[(Future[List[BikeReport]], Future[List[UsageReport]], Future[GeneralReport])] = {
-    //read all data from file
-    val lines = Future(read(reader, sourceFilenameListWithPath))
-    //get reports
-    lines.map(list => getReport(bikeStatsReportGenerator,
+              lines: Future[List[Option[DriveInfo]]]): (Future[List[BikeReport]], Future[List[UsageReport]], Future[GeneralReport]) = {
+    getReport(bikeStatsReportGenerator,
       usageStatsReportGenerator,
       generalStatsReportGenerator,
-      list))
+      lines)
+  }
+
+  def getReports(bikeStatsReportGenerator: BikeStatsReportGenerator,
+                 usageStatsReportGenerator: UsageStatsReportGenerator,
+                 generalStatsReportGenerator: GeneralStatsReportGenerator,
+                 futureReports: Future[(Future[List[BikeReport]], Future[List[UsageReport]], Future[GeneralReport])]): Future[List[Future[Report]]] = {
+    futureReports.map(reports => {
+      List(
+        bikeStatsReportGenerator.generateReport(reports._1),
+        usageStatsReportGenerator.generateReport(reports._2),
+        generalStatsReportGenerator.generateReport(reports._3)
+      )
+    })
   }
 
   //read
