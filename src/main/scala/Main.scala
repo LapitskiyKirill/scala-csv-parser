@@ -19,50 +19,49 @@ object Main {
     val driveRepository = new DriveRepository()
     val stationRepository = new StationRepository()
     val save = readAndSaveData(stationRepository, driveRepository, reader, Config.sourceFilenamesListWithPath)
-    val result = save.map(_ => {
+    val result = save.flatMap(_ => {
       processAll(
         reporter,
-        stationRepository.readAll().map(stations =>
+        stationRepository.readAll().flatMap(stations =>
           driveRepository.readAll().map(drives => {
             Utils.mapToDriveInfo(
               drives,
               stations
             )
           })
-        ).flatten
+        )
       ).map(Writer.write)
-    }).flatten
+    })
     Await.ready(result, Duration.Inf)
   }
 
-  def readAndSaveData(stationRepository: StationRepository, driveRepository: DriveRepository, reader: ParameterizedReader[DriveInfo], files: List[String]): Future[List[Int]] = {
-    val result = Future(files.map(fileName => {
+  def readAndSaveData(stationRepository: StationRepository, driveRepository: DriveRepository, reader: ParameterizedReader[DriveInfo], files: List[String]): Future[Int] = {
+    Future(files.map(fileName => {
       val lines = reader.readFile(fileName)
       val insertedStations = saveStations(stationRepository, lines)
-      val insertedDrives = insertedStations.map(_ => saveDrives(driveRepository, lines)).flatten
+      val insertedDrives = insertedStations.flatMap(_ => saveDrives(driveRepository, lines))
       (insertedStations, insertedDrives)
-    }))
-    result.map(res => {
-      val insertedStations = Future.sequence(res.map(_._1))
-        .map(_.sum)
-      val insertedDrives = Future.sequence(res.map(_._2))
-        .map(_.flatMap(a => Option.option2Iterable(a)))
-        .map(_.sum)
-      Future.sequence(List(insertedDrives, insertedStations))
-    }).flatten
+    })).flatMap(res => {
+      Future.sequence(
+        List(
+          Future.sequence(res.map(_._1))
+            .map(_.sum),
+          Future.sequence(res.map(_._2))
+            .map(_.flatMap(a => Option.option2Iterable(a)))
+            .map(_.sum)
+        )).map(_.sum)
+    })
   }
 
   def saveStations(stationRepository: StationRepository, lines: List[Option[DriveInfo]]): Future[Int] = {
-    val stations = Utils.mapToStation(lines)
-    Future.sequence(stations.map(station => {
+    Future.sequence(Utils.mapToStation(lines).map(station => {
       stationRepository.insert(station)
     }
     )).map(_.sum)
   }
 
   def saveDrives(driveRepository: DriveRepository, lines: List[Option[DriveInfo]]): Future[Option[Int]] = {
-    val drives = Utils.mapToDrive(lines)
-    driveRepository.insertAll(drives)
+    driveRepository.insertAll(Utils.mapToDrive(lines))
   }
 
   def main(args: Array[String]): Unit = {

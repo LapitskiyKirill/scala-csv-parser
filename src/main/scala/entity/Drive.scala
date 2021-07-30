@@ -51,8 +51,10 @@ class DriveRepository(db: Database = Database.forConfig("postgres")) {
 
   def insertAll(drives: List[Drive]): Future[Option[Int]] = {
     val trySave = Try {
-      val insertDrivesQuery = Tables.drives ++= drives
-      db.run(insertDrivesQuery).map(_.map(b => b))
+      Future.sequence(drives.grouped(30000).map(i => {
+        val insertDrivesQuery = Tables.drives ++= i
+        db.run(insertDrivesQuery).map(_.map(b => b))
+      }).toList).map(b => Option(b.flatMap(v => Option.option2Iterable(v)).sum))
     }
     trySave match {
       case Success(v) => v
